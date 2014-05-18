@@ -1,0 +1,248 @@
+t <- c("earn","money-fx","grain","crude","trade","interest","ship","wheat","corn")
+words = c()
+
+run <- function(number) {
+	return(classify(prepare(number)))
+}
+
+reload <- function() {
+	# Reload function
+	source("C:\\Users\\Tabitha\\Documents\\4thyearDataMining\\source.txt")
+}
+
+prepare <- function(number) {
+
+	# Require packages and set Reuters corpus to rt
+    require(tm)
+	require(tm.corpus.Reuters21578)
+	data(Reuters21578)
+	rt <- Reuters21578
+
+	#v <- c(v, rt[1])
+
+	# Remove numbers
+	rtnew <- tm_map(rt, removeNumbers)
+
+	# Remove punctuation
+	rtnew <- tm_map(rtnew, removePunctuation)
+
+	# Remove whitespace
+	rtnew <- tm_map(rtnew, stripWhitespace)
+
+	# Change all letters to lowercase 
+	rtnew <- tm_map(rtnew, tolower)
+
+	# Remove common words
+	rtnew <- tm_map(rtnew, removeWords, stopwords("english"))
+
+	# Change words to their stem word (eg: went -> go)
+	rtnew <- tm_map(rtnew, stemDocument, language = "english")
+
+	# Create a Document Term Matrix 
+	rtdtm <- DocumentTermMatrix(rtnew)
+
+	rtdtmnew <- removeSparseTerms(rtdtm, number)
+	words = findFreqTerms(rtdtmnew)
+	df <- as.data.frame(inspect(rtdtmnew))
+
+	earn = vector()
+	acquisitions = vector()
+	moneyfx = vector()
+	grain = vector()
+	crude = vector()
+	trade = vector()
+	interest = vector()
+	ship = vector()
+	wheat = vector()
+	corn = vector()
+
+	n = 1
+	for (n in 1:nrow(df)) {
+		topics = meta(rt[[n]], tag="Topics")
+
+		if ("earn" %in% topics) 
+			earn = c(earn, TRUE)
+		else
+			earn = c(earn, FALSE)
+		if ("money-fx" %in% topics) 
+			moneyfx = c(moneyfx, TRUE)
+		else 
+			moneyfx = c(moneyfx, FALSE)
+		if ("grain" %in% topics) 
+			grain = c(grain, TRUE)
+		else
+			grain = c(grain, FALSE)
+		if ("crude" %in% topics) 
+			crude = c(crude, TRUE)
+		else
+			crude = c(crude, FALSE)
+		if ("trade" %in% topics) 
+			trade = c(trade, TRUE)
+		else
+			trade = c(trade, FALSE)
+		if ("interest" %in% topics) 
+			interest = c(interest, TRUE)
+		else
+			interest = c(interest, FALSE)
+		if ("ship" %in% topics) 
+			ship = c(ship, TRUE)
+		else
+			ship = c(ship, FALSE)
+		if ("wheat" %in% topics) 
+			wheat = c(wheat, TRUE)
+		else
+			wheat = c(wheat, FALSE)
+		if ("corn" %in% topics) 
+			corn = c(corn, TRUE)
+		else
+			corn = c(corn, FALSE)
+
+		n = n + 1
+	}
+
+	df = (data.frame(data.frame(earn, moneyfx, grain, crude, trade, interest, ship, wheat, corn), df))
+
+    return(df)
+}
+
+classify <- function(dataset) {
+	# First, split into training and test set
+ #    Make a new dataframe with only the articles to test
+ #    The first article is a training article, so make the dataframe from that
+	#  trainingset <- dataset[1,]
+	#  Go through the rest of the articles
+	#  n = 2
+	# for (n in 2:nrow(dataset)) {
+	# 	if (meta(rt[[n]], tag="LEWISSPLIT") == "TRAIN") {
+	# 		trainingset = rbind(trainingset, dataset[n,])
+	# 	}
+	# 	n = n + 1
+	# }
+    
+ #    # Now make test set
+ #    # The first test article is 14824, so start with that one
+ #    testset <- dataset[14824,]
+ #    n = 14825
+	# for (n in n:nrow(dataset)) {
+	# 	if (meta(rt[[n]], tag="LEWISSPLIT") == "TEST") {
+	# 		testset = rbind(testset, dataset[n,])
+	# 	}
+	# 	n = n + 1
+	# }	
+
+	# Split into training and test set
+	trainOrTest <- sapply(1:nrow(df), function(row){
+		lewissplit <- meta(rt[[row]], tag="LEWISSPLIT")
+		lewissplit
+	})
+	df[, "TYPE"] <- trainOrTest
+	trainingSet <- subset(df, df[["TYPE"]] == "TRAIN")
+	trainingSet <- subset(trainingSet, select = -TYPE)
+	testSet <- subset(df, df[["TYPE"]] == "TEST")
+	testSet <- subset(testSet, select = -TYPE)
+
+	folds = 1
+	forestAccuracy = c()
+	naiveAccuracy = c()
+	svmAccuracy = c()
+
+	earn = vector()
+	acquisitions = vector()
+	moneyfx = vector()
+	grain = vector()
+	crude = vector()
+	trade = vector()
+	interest = vector()
+	ship = vector()
+	wheat = vector()
+	corn = vector()
+
+	# Run for each topic
+	for (j in 1:10) {
+		cat("\n Running for ", t[j], "\n")
+		for (i in 1:folds) {
+			# Run for each classifier
+			forestAccuracy = append(forestAccuracy, test(randomForest, trainingset, testset, t[j]))
+			naiveAccuracy = append(naiveAccuracy, test(naiveBayes, trainingset, testset, t[j]))
+			svmAccuracy = append(svmAccuracy, test(svm, trainingset, testset, t[j]))
+		}
+
+		# Find the mean accuracy
+		forestMean = mean(forestAccuracy)
+		bayesMean = mean(naiveAccuracy)
+		svmMean = mean(svmAccuracy)
+		cat("Averages:\n")
+		cat("Random Forest:\t", forestMean, "\n")
+		cat("Naive Bayes: \t", bayesMean, "\n")
+		cat("SVM: \t\t", svmMean, "\n")
+		
+		# Find the PT values
+		# cat("\nPT Values:\n")
+		# a = q2(forestAccuracy, naiveAccuracy)
+		# cat("Random Forest compared to Naive Bayes:\t", a, "\n")
+		# a = q2(forestAccuracy, svmAccuracy)
+		# cat("Random Forest compared to SVM:\t\t", a, "\n")
+		# a = q2(naiveAccuracy, svmAccuracy)
+		# cat("Naive Bayes compared to SVM:\t\t", a, "\n", "\n")
+
+		# Give confidence levels for the top performing classifier
+		# Get the best classifier and run on that one
+		# if (forestMean > bayesMean & forestMean > svmMean) {
+		# 	cat("Random Forest is the best performing classifier\n")
+		# 	measure(papers, randomForest)
+		# } else if (bayesMean > forestMean & bayesMean > svmMean) {
+		# 	cat("Naive Bayes is the best performing classifier\n")
+		# 	measure(papers, naiveBayes)
+		# } else if (svmMean > bayesMean & svmMean > forestMean) {
+		# 	cat("SVM is the best performing classifier\n")
+		# 	measure(papers, svm)
+		# }
+	}
+}
+
+test <- function(func, trainingData, testData, topic) {
+	text <- as.formula(paste(topic, "~", paste(words, collapse = "+")))	
+	class = func(text, data=trainingData)
+	predicted = predict(class, testData)
+	print(predicted)
+	accuracy = sum(as.numeric(predicted == testData[,12]))/nrow(testData)
+	return(accuracy)
+}
+
+measure <- function(papers, func) {
+	# Get new test data
+	rand = papers[sample(nrow(papers), nrow(papers)), ]
+	trainingData = rand[1:nrow(rand)/2, ]
+	testData = rand[(nrow(rand)/2+1):nrow(rand), ]
+
+	# Run on the best function
+	class = func(type ~ ., data=trainingData)
+	predicted = predict(class, testData)
+	
+	# Run the measures for each class
+	classes = unique(papers[['type']])
+	measures = data.frame(class=c(1:(length(classes))), accuracy = NA, tpr = NA, tnr = NA, fpr = NA, recall = NA, precision = NA, f = NA, avgRecall = NA)
+	i = 1
+
+	# for (class in classes) {
+	# 	tp = sum(as.numeric((testData[, 12] == predicted) & (predicted ==  class)))
+	# 	tn = sum(as.numeric((testData[, 12] == predicted) & (predicted !=  class)))
+	# 	fn = sum(as.numeric((testData[, 12] != predicted) & (testData[, 12] ==  class)))
+	# 	fp = sum(as.numeric((testData[, 12] != predicted) & (predicted ==  class)))
+	# 	pos = sum(as.numeric(testData[, 12] == class))
+	# 	neg = sum(as.numeric(testData[, 12] != class))
+	# 	accuracy = (tp + tn)/ nrow(testData)
+	# 	tpr = tp / pos
+	# 	tnr = tn / neg
+	# 	fpr = 1 - tnr
+	# 	recall = tp / (tp + fn)
+	# 	precision = tp / (tp + fp)
+	# 	f = (2 * precision * recall) / (precision + recall)
+	# 	avgRecall = (tpr + tnr) / 2
+	# 	measures[i,] = c(class, accuracy, tpr, tnr, fpr, recall, precision, f, avgRecall)
+	# 	i = i + 1
+	# }
+
+	cat("Measures: \n")
+	print(measures)
+}
